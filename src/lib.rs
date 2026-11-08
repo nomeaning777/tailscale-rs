@@ -208,6 +208,7 @@ impl Device {
             keys,
             listen_port: config.listen_port,
             static_endpoints: config.static_endpoints.clone(),
+            announce_local: config.announce_local_endpoints,
         });
 
         rt.wait_for_startup_result()
