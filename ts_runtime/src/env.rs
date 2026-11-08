@@ -20,7 +20,7 @@ use crate::{
 };
 
 /// How the direct UDP transport binds and presents itself.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct DirectConfig {
     /// The UDP port to bind, or an ephemeral one when `None`.
     pub listen_port: Option<u16>,
@@ -29,6 +29,20 @@ pub struct DirectConfig {
     /// as [`ts_control::EndpointType::ExplicitConf`], like tailscaled's
     /// `TS_DEBUG_PRETENDPOINT`.
     pub static_endpoints: Vec<core::net::SocketAddr>,
+    /// Whether to report the addresses of this host's own interfaces. Off for a node whose
+    /// interfaces peers cannot reach anyway (a pod), where announcing them only sends peers
+    /// down a wrong path; `static_endpoints` then say where the node is.
+    pub announce_local: bool,
+}
+
+impl Default for DirectConfig {
+    fn default() -> Self {
+        Self {
+            listen_port: None,
+            static_endpoints: Vec::new(),
+            announce_local: true,
+        }
+    }
 }
 
 #[derive(Clone)]

@@ -86,8 +86,9 @@ impl DirectActor {
             .publish(NewEndpoints(
                 self.addrs_v4
                     .iter()
+                    .chain(self.addrs_v6.iter())
+                    .filter(|_| self.env.direct.announce_local)
                     .copied()
-                    .chain(self.addrs_v6.iter().copied())
                     .chain(self.stun_addr.into_iter().map(|addr| Endpoint {
                         endpoint: addr,
                         ty: EndpointType::Stun,

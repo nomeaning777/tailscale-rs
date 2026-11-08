@@ -58,6 +58,13 @@ pub struct Config {
     /// host's address and host port when running in a container whose own addresses are not
     /// reachable. This is what `TS_DEBUG_PRETENDPOINT` does for tailscaled.
     pub static_endpoints: Vec<SocketAddr>,
+
+    /// Whether to report the addresses of this host's own interfaces to peers (default: yes).
+    ///
+    /// Turn it off for a node whose interfaces peers cannot reach anyway, such as one in a
+    /// container, where announcing them would only send peers down a path that does not work;
+    /// [`static_endpoints`](Config::static_endpoints) then say where the node is.
+    pub announce_local_endpoints: bool,
 }
 
 impl Config {
@@ -150,6 +157,7 @@ impl Default for Config {
             ephemeral: false,
             listen_port: None,
             static_endpoints: vec![],
+            announce_local_endpoints: true,
         }
     }
 }

@@ -58,6 +58,9 @@ pub struct Config {
     /// Endpoints reported to peers besides the discovered ones (see
     /// [`DirectConfig::static_endpoints`](env::DirectConfig::static_endpoints)).
     pub static_endpoints: Vec<core::net::SocketAddr>,
+    /// Whether to report this host's own interface addresses to peers (see
+    /// [`DirectConfig::announce_local`](env::DirectConfig::announce_local)).
+    pub announce_local: bool,
 }
 
 impl kameo::Actor for Runtime {
@@ -70,6 +73,7 @@ impl kameo::Actor for Runtime {
             env::DirectConfig {
                 listen_port: config.listen_port,
                 static_endpoints: config.static_endpoints,
+                announce_local: config.announce_local,
             },
         );
 
