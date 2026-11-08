@@ -53,6 +53,11 @@ pub struct Config {
     pub auth_key: Option<String>,
     /// The keys to use.
     pub keys: ts_keys::NodeState,
+    /// The UDP port the direct transport binds, or an ephemeral one when `None`.
+    pub listen_port: Option<u16>,
+    /// Endpoints reported to peers besides the discovered ones (see
+    /// [`DirectConfig::static_endpoints`](env::DirectConfig::static_endpoints)).
+    pub static_endpoints: Vec<core::net::SocketAddr>,
 }
 
 impl kameo::Actor for Runtime {
@@ -60,7 +65,13 @@ impl kameo::Actor for Runtime {
     type Args = Config;
 
     async fn on_start(config: Config, slf: ActorRef<Self>) -> Result<Self, Self::Error> {
-        let env = Env::new(config.keys);
+        let env = Env::new(
+            config.keys,
+            env::DirectConfig {
+                listen_port: config.listen_port,
+                static_endpoints: config.static_endpoints,
+            },
+        );
 
         env.bus.link(&slf).await;
         env.scheduler.link(&slf).await;
