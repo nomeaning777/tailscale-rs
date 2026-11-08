@@ -19,6 +19,18 @@ use crate::{
     retained_bus::RetainedBus,
 };
 
+/// How the direct UDP transport binds and presents itself.
+#[derive(Debug, Clone, Default)]
+pub struct DirectConfig {
+    /// The UDP port to bind, or an ephemeral one when `None`.
+    pub listen_port: Option<u16>,
+    /// Endpoints to report to peers besides the discovered ones: addresses that lead to this
+    /// node's port from outside, such as a port mapping or a container host's port. Reported
+    /// as [`ts_control::EndpointType::ExplicitConf`], like tailscaled's
+    /// `TS_DEBUG_PRETENDPOINT`.
+    pub static_endpoints: Vec<core::net::SocketAddr>,
+}
+
 #[derive(Clone)]
 pub struct Env {
     pub bus: ActorRef<RetainedBus>,
@@ -26,15 +38,17 @@ pub struct Env {
     pub registry: ActorRef<Registry>,
 
     pub keys: Arc<ts_keys::NodeState>,
+    pub direct: Arc<DirectConfig>,
 }
 
 impl Env {
-    pub fn new(keys: ts_keys::NodeState) -> Self {
+    pub fn new(keys: ts_keys::NodeState, direct: DirectConfig) -> Self {
         Self {
             bus: RetainedBus::spawn_default(),
             scheduler: Scheduler::spawn_default(),
             registry: Registry::spawn_default(),
             keys: Arc::new(keys),
+            direct: Arc::new(direct),
         }
     }
 

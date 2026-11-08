@@ -2,15 +2,18 @@
 //!
 //! This is an involved wrapper around a [`UdpSocket`] to make it function as an underlay transport.
 //! Technically, it's actually two sockets, an IPv4 and an IPv6 (if available). Both are bound
-//! to the unspecified address for their network type (`0.0.0.0` or `::`), and the socket to use to
-//! send a packet is determined by its address type.
+//! to the unspecified address for their network type (`0.0.0.0` or `::`), on an ephemeral port
+//! or the configured [`DirectConfig::listen_port`](crate::env::DirectConfig::listen_port), and
+//! the socket to use to send a packet is determined by its address type.
 //!
 //! The primary function of this actor is just to bridge UDP tx/rx to its dataplane queues. But
 //! also, because it's the actor that holds the UDP socket(s) (and hence knows the ports each is
 //! bound on), it's additionally responsible for reporting this node's UDP endpoints on the bus (the
 //! control actor reports these to control, and the path discovery actor uses this to set its
 //! `CallMeMaybe` endpoints). It just aggregates the netmon and stun discovered addresses to
-//! (combining the netmon addresses with the local port) to make this report.
+//! (combining the netmon addresses with the local port) to make this report, plus the
+//! [static endpoints](crate::env::DirectConfig::static_endpoints) it was configured with, for
+//! nodes whose own addresses are not what peers can reach (a port mapping, a container).
 //!
 //! No disco concerns are directly handled by this actor; these are done in [`disco`][crate::disco]
 //! (incoming `CallMeMaybe` and `Ping`s from peers) and [`path_discoverer`][crate::path_discoverer]
@@ -89,6 +92,16 @@ impl DirectActor {
                         endpoint: addr,
                         ty: EndpointType::Stun,
                     }))
+                    .chain(
+                        self.env
+                            .direct
+                            .static_endpoints
+                            .iter()
+                            .map(|addr| Endpoint {
+                                endpoint: *addr,
+                                ty: EndpointType::ExplicitConf,
+                            }),
+                    )
                     .collect(),
             ))
             .await
@@ -112,18 +125,30 @@ impl kameo::Actor for DirectActor {
             .ask::<DataplaneActor, _>(None, crate::dataplane::NewUnderlayTransport, true)
             .await?;
 
-        let sock4 = UdpSocket::bind("0.0.0.0:0").await.unwrap();
+        // The configured port, or an ephemeral one. With a fixed port, the IPv6 socket asks for
+        // the same one; where the two cannot share it, the node goes without IPv6 direct paths.
+        let port = env.direct.listen_port.unwrap_or(0);
+        let sock4 = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port))
+            .await
+            .unwrap_or_else(|error| panic!("direct udp4 socket bind on port {port}: {error}"));
         let sock4 = Arc::new(sock4);
         tracing::debug!(transport_id = ?id, local_addr = %sock4.local_addr().unwrap(), "direct udp4 socket bound");
 
         slf.attach_stream(udp_rx(sock4.clone()).boxed(), (), ());
 
-        let sock6 = UdpSocket::bind("[::]:0").await.ok().map(Arc::new);
+        let sock6 = match UdpSocket::bind((Ipv6Addr::UNSPECIFIED, port)).await {
+            Ok(sock6) => Some(Arc::new(sock6)),
+            Err(error) => {
+                tracing::debug!(port, %error, "could not bind ipv6 direct");
+                None
+            }
+        };
         if let Some(sock6) = sock6.as_ref() {
             tracing::debug!(transport_id = ?id, local_addr = %sock6.local_addr().unwrap(), "direct udp6 socket bound");
             slf.attach_stream(udp_rx(sock6.clone()).boxed(), (), ());
-        } else {
-            tracing::debug!("could not bind ipv6 direct");
+        }
+        if !env.direct.static_endpoints.is_empty() {
+            tracing::info!(endpoints = ?env.direct.static_endpoints, "direct transport will report static endpoints");
         }
 
         slf.attach_stream(UnboundedReceiverStream::new(rx).map(UdpTx), (), ());

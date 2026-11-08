@@ -1,6 +1,6 @@
 //! Types and utilities for configuring a Tailscale [`Device`](crate::Device).
 
-use std::path::Path;
+use std::{net::SocketAddr, path::Path};
 
 use ts_keys::PersistState;
 
@@ -41,6 +41,23 @@ pub struct Config {
     ///
     /// [KB article on ephemeral nodes]: https://tailscale.com/docs/features/ephemeral-nodes
     pub ephemeral: bool,
+
+    /// The UDP port this node binds for its direct (WireGuard) transport, instead of an
+    /// ephemeral one.
+    ///
+    /// Set it when something forwards a fixed port to this node, such as a router port mapping
+    /// or a container runtime's host port, and name that forwarded address in
+    /// [`static_endpoints`](Config::static_endpoints).
+    pub listen_port: Option<u16>,
+
+    /// Addresses to report to peers as reachable endpoints of this node, in addition to the
+    /// ones it discovers itself.
+    ///
+    /// Peers try these for a direct connection, so each should lead to this node's
+    /// [`listen_port`](Config::listen_port): the public or LAN side of a port mapping, or the
+    /// host's address and host port when running in a container whose own addresses are not
+    /// reachable. This is what `TS_DEBUG_PRETENDPOINT` does for tailscaled.
+    pub static_endpoints: Vec<SocketAddr>,
 }
 
 impl Config {
@@ -140,6 +157,8 @@ impl Default for Config {
             requested_hostname: None,
             requested_tags: vec![],
             ephemeral: false,
+            listen_port: None,
+            static_endpoints: vec![],
         }
     }
 }

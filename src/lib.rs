@@ -206,6 +206,8 @@ impl Device {
             control_config: config.into(),
             auth_key,
             keys,
+            listen_port: config.listen_port,
+            static_endpoints: config.static_endpoints.clone(),
         });
 
         rt.wait_for_startup_result()
